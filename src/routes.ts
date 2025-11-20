@@ -1,11 +1,13 @@
+// src/routes.ts
 import { FastifyInstance } from 'fastify';
-import { randomUUID } from 'crypto';
 import { orderQueue, defaultJobOptions } from './queue';
 import { insertOrder } from './db';
 import { CreateOrderRequest, Order } from './types';
-import { orderEvents } from './events';
+import { emitOrderUpdate, orderEvents } from './events';
+import { randomUUID } from 'crypto';
 
 export async function registerRoutes(app: FastifyInstance) {
+  // POST /api/orders/execute  -> create market order
   app.post<{ Body: CreateOrderRequest }>(
     '/api/orders/execute',
     async (request, reply) => {
@@ -27,9 +29,17 @@ export async function registerRoutes(app: FastifyInstance) {
         status: 'pending'
       };
 
+      // Save initial order to DB
       await insertOrder(order);
 
-      // enqueue
+      // Immediately emit initial pending status
+      emitOrderUpdate({
+        orderId: id,
+        status: 'pending',
+        timestamp: new Date().toISOString()
+      });
+
+      // Add to queue
       await orderQueue.add('execute-order', order, defaultJobOptions);
 
       return reply.status(200).send({
@@ -40,36 +50,36 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   );
 
-  // WebSocket
-  app.get(
-    '/ws/orders/:orderId',
-    { websocket: true },
-    (socket, req) => {
-      const { orderId } = req.params as { orderId: string };
+// REAL event-driven WebSocket route using socket
+app.get(
+  '/ws/orders/:orderId',
+  { websocket: true },
+  (socket, req) => {
+    const { orderId } = req.params as { orderId: string };
 
-      console.log(`🔌 WebSocket connected for order ${orderId}`);
+    console.log(`🔌 WebSocket connected for order ${orderId}`);
 
-      socket.send(JSON.stringify({
-        orderId,
-        status: 'pending',
-        info: 'Subscribed to order updates'
-      }));
+    // send initial message
+    socket.send(JSON.stringify({
+      orderId,
+      status: 'pending',
+      info: 'Subscribed to order updates'
+    }));
 
-      const listener = (update: any) => {
-        if (socket.readyState === 1) {
-          socket.send(JSON.stringify(update));
-        }
-      };
+    // listener for events
+    const listener = (update: any) => {
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify(update));
+      }
+    };
 
-      orderEvents.on(`order-updated:${orderId}`, listener);
+    // subscribe to events for this order
+    orderEvents.on(`order-updated:${orderId}`, listener);
 
-      socket.on('close', () => {
-        orderEvents.off(`order-updated:${orderId}`, listener);
-        console.log(`🔌 WebSocket disconnected for order ${orderId}`);
-      });
-    }
-  );
-
-  // (optional) keep /health route
-  app.get('/health', async () => ({ status: 'ok' }));
+    socket.on('close', () => {
+      orderEvents.off(`order-updated:${orderId}`, listener);
+      console.log(`🔌 WebSocket disconnected for order ${orderId}`);
+    });
+  }
+);
 }

@@ -1,3 +1,4 @@
+// src/db.ts
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { Order, OrderStatus } from './types';
@@ -12,6 +13,8 @@ export const pool = new Pool({
 });
 
 export async function initDb() {
+  // We assume DB and table already created via SQL you ran earlier
+  // This call can be used just to test connection
   await pool.query('SELECT 1');
   console.log('✅ Connected to PostgreSQL');
 }

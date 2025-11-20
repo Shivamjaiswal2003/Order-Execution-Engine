@@ -1,3 +1,5 @@
+// src/types.ts
+
 export type OrderType = 'market';
 
 export type OrderSide = 'buy' | 'sell';
@@ -38,4 +40,3 @@ export interface OrderStatusUpdate {
   error?: string;
   timestamp: string;
 }
-

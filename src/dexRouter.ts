@@ -1,3 +1,4 @@
+// src/dexRouter.ts
 import { Order } from './types';
 
 function sleep(ms: number): Promise<void> {
@@ -20,17 +21,24 @@ export interface ExecuteResult {
 }
 
 export class MockDexRouter {
-  private basePrice = 1;
+  private basePrice = 1; // simple constant base price
 
   async getRaydiumQuote(
     tokenIn: string,
     tokenOut: string,
     amount: number
   ): Promise<Quote> {
+    // Simulate network delay
     await sleep(200);
-    const variance = 0.98 + Math.random() * 0.04;
+
+    const variance = 0.98 + Math.random() * 0.04; // 0.98 to 1.02
     const price = this.basePrice * variance;
-    return { dex: 'Raydium', price, fee: 0.003 };
+
+    return {
+      dex: 'Raydium',
+      price,
+      fee: 0.003
+    };
   }
 
   async getMeteoraQuote(
@@ -39,15 +47,24 @@ export class MockDexRouter {
     amount: number
   ): Promise<Quote> {
     await sleep(200);
-    const variance = 0.97 + Math.random() * 0.05;
+    const variance = 0.97 + Math.random() * 0.05; // 0.97 to 1.02
     const price = this.basePrice * variance;
-    return { dex: 'Meteora', price, fee: 0.002 };
+
+    return {
+      dex: 'Meteora',
+      price,
+      fee: 0.002
+    };
   }
 
   async executeSwap(dex: string, order: Order): Promise<ExecuteResult> {
+    // Simulate 2-3 second execution
     await sleep(2000 + Math.random() * 1000);
+
     const finalPrice =
-      this.basePrice * (0.99 + Math.random() * 0.02);
+      this.basePrice *
+      (0.99 + Math.random() * 0.02); // final execution price around base
+
     return {
       txHash: generateMockTxHash(),
       executedPrice: finalPrice

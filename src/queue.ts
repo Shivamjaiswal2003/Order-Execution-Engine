@@ -1,10 +1,15 @@
+// src/queue.ts
 import { Queue, Worker, JobsOptions } from 'bullmq';
 import IORedis from 'ioredis';
-import dotenv from 'dotenv';
 import { MockDexRouter } from './dexRouter';
-import { Order, OrderStatus, OrderStatusUpdate } from './types';
+import {
+  Order,
+  OrderStatus,
+  OrderStatusUpdate
+} from './types';
 import { emitOrderUpdate } from './events';
 import { updateOrderStatus } from './db';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -13,7 +18,10 @@ const connection = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:6379'
   enableReadyCheck: false
 });
 
-export const orderQueue = new Queue<Order>('orders', { connection });
+
+export const orderQueue = new Queue<Order>('orders', {
+  connection
+});
 
 const router = new MockDexRouter();
 
@@ -32,6 +40,7 @@ async function sendStatus(
     timestamp: new Date().toISOString()
   };
 
+  // Persist status change in DB (only for certain statuses if you like)
   await updateOrderStatus(orderId, status, {
     dex: extra.dex ?? null,
     executedPrice: extra.executedPrice ?? null,
@@ -52,6 +61,7 @@ export const defaultJobOptions: JobsOptions = {
   removeOnFail: false
 };
 
+// Worker to process jobs
 export const orderWorker = new Worker<Order>(
   'orders',
   async (job) => {
@@ -60,6 +70,7 @@ export const orderWorker = new Worker<Order>(
 
     try {
       await sendStatus(id, 'pending');
+
       await sendStatus(id, 'routing');
 
       const [rayQuote, metQuote] = await Promise.all([
@@ -72,6 +83,7 @@ export const orderWorker = new Worker<Order>(
 
       await sendStatus(id, 'building', { dex: bestDex });
 
+      // Simulate small building delay
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       await sendStatus(id, 'submitted', { dex: bestDex });
@@ -93,13 +105,16 @@ export const orderWorker = new Worker<Order>(
       throw err;
     }
   },
-  { connection, concurrency: 10 }
+  {
+    connection,
+    concurrency: 10
+  }
 );
 
 orderWorker.on('completed', (job, result) => {
-  console.log(`Success: Job ${job.id} completed`, result);
+  console.log(`✅ Job ${job.id} completed`, result);
 });
 
 orderWorker.on('failed', (job, err) => {
-  console.error(`wrong! Job ${job?.id} failed after retries`, err);
+  console.error(`❌ Job ${job?.id} failed after retries`, err);
 });

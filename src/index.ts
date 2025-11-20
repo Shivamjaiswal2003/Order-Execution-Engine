@@ -1,10 +1,12 @@
+// src/index.ts
 import Fastify from 'fastify';
-import websocket from '@fastify/websocket';
 import cors from '@fastify/cors';
+
+import websocket from '@fastify/websocket';
 import dotenv from 'dotenv';
 import { registerRoutes } from './routes';
 import { initDb } from './db';
-import './queue';
+import './queue'; // side-effect: start worker
 
 dotenv.config();
 
@@ -17,9 +19,8 @@ async function start() {
     origin: true,
     methods: ['GET', 'POST', 'OPTIONS']
   });
-
+  
   await app.register(websocket);
-
   await registerRoutes(app);
 
   await initDb();

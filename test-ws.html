@@ -1,81 +1,76 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Order WebSocket Test</title>
-  </head>
-  <body>
-    <h1>Order WebSocket Test</h1>
+<body>
+  <h1>Order WebSocket Test</h1>
 
-    <div style="margin-bottom: 10px;">
-      <label>
-        Order ID:
-        <input id="orderId" style="width: 400px" readonly />
-      </label>
-      <button id="connectBtn">Connect with existing ID</button>
-    </div>
+  <div style="margin-bottom: 10px;">
+    <label>
+      Order ID:
+      <input id="orderId" style="width: 400px" readonly />
+    </label>
+    <button id="connectBtn">Connect with existing ID</button>
+  </div>
 
-    <div style="margin-bottom: 10px;">
-      <button id="createAndListenBtn">Create Order & Listen</button>
-    </div>
+  <div style="margin-bottom: 10px;">
+    <button id="createAndListenBtn">Create Order & Listen</button>
+  </div>
 
-    <pre id="log" style="background:#111;color:#0f0;padding:10px;height:300px;overflow:auto;"></pre>
+  <pre id="log" style="background:#111;color:#0f0;padding:10px;height:300px;overflow:auto;"></pre>
 
-    <script>
-      const orderInput = document.getElementById('orderId');
-      const logEl = document.getElementById('log');
-      const connectBtn = document.getElementById('connectBtn');
-      const createAndListenBtn = document.getElementById('createAndListenBtn');
+  <script>
+    const orderInput = document.getElementById('orderId');
+    const logEl = document.getElementById('log');
+    const connectBtn = document.getElementById('connectBtn');
+    const createAndListenBtn = document.getElementById('createAndListenBtn');
 
-      function log(msg) {
-        logEl.textContent += msg + "\n";
-        logEl.scrollTop = logEl.scrollHeight;
+    function log(msg) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function connectWebSocket(orderId) {
+      const wsUrl = `ws://localhost:3000/ws/orders/${orderId}`;
+      log(`Connecting to ${wsUrl} ...`);
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => log('✅ WebSocket connected');
+      ws.onmessage = (event) => log('📩 ' + event.data);
+      ws.onerror = () => log('❌ WebSocket error');
+      ws.onclose = () => log('🔌 WebSocket closed');
+    }
+
+    // Use an existing orderId from the input
+    connectBtn.onclick = () => {
+      const orderId = orderInput.value.trim();
+      if (!orderId) {
+        alert('No orderId set yet');
+        return;
       }
+      connectWebSocket(orderId);
+    };
 
-      function connectWebSocket(orderId) {
-        const wsUrl = `ws://localhost:3000/ws/orders/${orderId}`;
-        log(`Connecting to ${wsUrl} ...`);
-
-        const ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => log('✅ WebSocket connected');
-        ws.onmessage = (event) => log('📩 ' + event.data);
-        ws.onerror = () => log('❌ WebSocket error');
-        ws.onclose = () => log('🔌 WebSocket closed');
+    // Create order via HTTP and immediately open WS
+    createAndListenBtn.onclick = async () => {
+      log('Creating new order via HTTP ...');
+      try {
+        const res = await fetch('http://localhost:3000/api/orders/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tokenIn: 'SOL',
+            tokenOut: 'USDC',
+            amount: 1.5,
+            side: 'buy'
+          })
+        });
+        const data = await res.json();
+        log('Created order: ' + JSON.stringify(data));
+        const orderId = data.orderId;
+        orderInput.value = orderId;
+        connectWebSocket(orderId); // immediately subscribe
+      } catch (err) {
+        console.error(err);
+        log('❌ Failed to create order');
       }
-
-      connectBtn.onclick = () => {
-        const orderId = orderInput.value.trim();
-        if (!orderId) {
-          alert('No orderId set yet');
-          return;
-        }
-        connectWebSocket(orderId);
-      };
-
-      createAndListenBtn.onclick = async () => {
-        log('Creating new order via HTTP ...');
-        try {
-          const res = await fetch('http://localhost:3000/api/orders/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tokenIn: 'SOL',
-              tokenOut: 'USDC',
-              amount: 1.5,
-              side: 'buy'
-            })
-          });
-          const data = await res.json();
-          log('Created order: ' + JSON.stringify(data));
-          const orderId = data.orderId;
-          orderInput.value = orderId;
-          connectWebSocket(orderId);
-        } catch (err) {
-          console.error(err);
-          log('❌ Failed to create order');
-        }
-      };
-    </script>
-  </body>
-</html>
+    };
+  </script>
+</body>
